@@ -6,22 +6,17 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException
 # pandas to be used for data storage and analysis
 import pandas as pd
 
 # must specify where the web driver is located and create a variable that will call on the web driver for chrome
-path = "/Applications/chromedriver-92" 
+path = "/Applications/chromedriver-96" 
 driver = webdriver.Chrome(path)
 # to make code easier to read, create variable for the url you want to use
 url = "https://www.costco.ca/coupons.html"
 
-# initializing lists
-names = []
-prices = []
-savings = []
-start_dates = []
-end_dates = []
+# initializing lists: "instead of initializing 5 lists and appending each column of data into them, you can initialize one list"
+products_list = []
 
 print("automated")
 
@@ -44,52 +39,50 @@ try:
 	# collecting the product details from each coupon for name, price and savings
 	coupons_detail = all_coupons.find_elements_by_xpath("//div[@class='CLpbulkcoup']")
 	# iterating through each coupon to get the name and the savings
-	for i, coupon_detail in enumerate(coupons_detail):
+	for coupon_detail in coupons_detail:
 		coupon_name = coupon_detail.find_element_by_class_name("sl1").text
-		names.append(coupon_name)
 
 		coupon_savings = coupon_detail.find_element_by_class_name("price").text
-		savings.append(coupon_savings)
 
 		price_rows = coupon_detail.find_elements_by_class_name("eco-priceTable")
 		
-
+		# some of the prices might be missing because they only include a % off depending on what you get, so we must account for that
 		if price_rows: 
 			coupon_price = coupon_detail.find_elements_by_class_name("eco-priceTable")[2].text
 		else:
 			coupon_price = None	
-		prices.append(coupon_price)
 	
 		# valid dates
 		start_date = coupon_detail.find_element_by_xpath("//span[@class='CLP-validdates']/time[1]").text
-		start_dates.append(start_date)
 		end_date = coupon_detail.find_element_by_xpath("//span[@class='CLP-validdates']/time[2]").text
-		end_dates.append(end_date)
+
+		# creating dictionary to be able to append once, as opposed to for each data point pulled
+		data = {
+			'Start Date' : start_date,
+ 			'End Date' : end_date,
+			'Product' : coupon_name,
+			'New Price' : coupon_price,
+			'Savings' : coupon_savings,
+		}
+
+		# appending each dictionary entry to our list
+		products_list.append(data)
 
 # after it has collected all of the coupon data, close web driver
 finally:
 	driver.quit()
 
 # creating a data frame
-coupons = pd.DataFrame({
- 	'Start Date' : start_dates,
- 	'End Date' : end_dates,
- 	'Product' : names,
-  	'New Price' : prices,
- 	'Savings' : savings,
- 	})
+coupons = pd.DataFrame(products_list)
+
 
 coupons.to_csv('/Users/anjawu/Code/costco-deal-hunter/costco-coupons.csv')
 
-# creating a new column that contains a number based on the location of where the search word is found (-1 returned if not found)
-coupons["Search"] = coupons["Product"].str.find(key_word)
-# searching for corresponding rows with key word
-relevant_coupons = coupons.loc[coupons['Search'] > -1].copy()
+# searching for corresponding rows with key word: number is based on the location of where the search word is found (-1 returned if not found)
+relevant_coupons = coupons[coupons["Product"].str.find(key_word) > -1]
 
 #check if any row had a key word in it:
 if not relevant_coupons.empty:
-	# dropping the search column that we created, in order to make results look better.
-	relevant_coupons = relevant_coupons.drop(['Search'], axis = 1)
 	print(relevant_coupons)
 	print("\n ------------------------------------------------------------------------------------------ \n")
 else:
